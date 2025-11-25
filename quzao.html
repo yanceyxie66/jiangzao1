@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 创意绘图实验室 | GenAI Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0;
+        }
+
+        .canvas-container {
+            background-image: 
+                linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* 隐藏滚动条但保持功能 */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .tool-btn.active {
+            background-color: #3b82f6; /* Blue 500 */
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        /* 加载动画 */
+        .cyber-loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #3b82f6;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 2px;
+        }
+        
+        /* 帮助弹窗样式 */
+        .help-tip {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部导航 -->
+    <header class="bg-slate-800 border-b border-slate-700 h-16 flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <i class="fas fa-magic text-white"></i>
+            </div>
+            <h1 class="text-xl font-bold tracking-wide">AI 创意绘图实验室</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="toggleSettings()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fas fa-cog text-lg"></i> 设置 API Key
+            </button>
+        </div>
+    </header>
+
+    <!-- 主工作区 -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- 左侧工具栏 -->
+        <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col p-5 gap-6 z-10 shadow-xl overflow-y-auto hide-scrollbar">
+            
+            <!-- 步骤 1: 上传 -->
+            <div class="step-group">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">步骤 1: 选择素材</h3>
+                <div class="border-2 border-dashed border-slate-600 rounded-xl p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-slate-800/50" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-cloud-upload-alt text-3xl text-slate-400 mb-2"></i>
+                    <p class="text-sm text-slate-300">点击上传图片</p>
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                </div>
+            </div>
+
+            <!-- 步骤 2: 涂抹 -->
+            <div class="step-group">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">步骤 2: 定义区域</h3>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button id="btnBrush" class="tool-btn active flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-all text-sm" onclick="setTool('brush')">
+                        <i class="fas fa-paint-brush"></i> 涂抹
+                    </button>
+                    <button id="btnEraser" class="tool-btn flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-all text-sm" onclick="setTool('eraser')">
+                        <i class="fas fa-eraser"></i> 擦除
+                    </button>
+                </div>
+                
+                <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                    <label class="flex justify-between text-xs text-slate-400 mb-2">
+                        <span>笔刷大小</span>
+                        <span id="brushSizeVal">20px</span>
+                    </label>
+                    <input type="range" id="brushSize" min="5" max="100" value="20" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+                
+                <button onclick="clearMask()" class="w-full mt-2 py-2 text-xs text-red-400 hover:text-red-300 border border-transparent hover:border-red-900/30 rounded transition-colors">
+                    <i class="fas fa-trash-alt mr-1"></i> 清空涂抹区域
+                </button>
+            </div>
+
+            <!-- 步骤 3: 提示词 -->
+            <div class="step-group flex-1">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">步骤 3: 创意描述</h3>
+                <textarea id="promptInput" class="w-full h-32 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none text-slate-200" placeholder="描述你想要在涂抹区域生成的内容...&#10;例如：一只戴着墨镜的猫，赛博朋克风格"></textarea>
+            </div>
+
+            <!-- 启动按钮 -->
+            <button id="generateBtn" onclick="startGeneration()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl font-bold text-white shadow-lg shadow-blue-900/20 transform transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                <i class="fas fa-sparkles"></i> 启动生成
+            </button>
+        </aside>
+
+        <!-- 中间画布区 -->
+        <section class="flex-1 bg-slate-950 relative flex items-center justify-center p-8 overflow-hidden">
+            
+            <!-- 画布包装器 -->
+            <div id="canvasWrapper" class="relative shadow-2xl rounded-lg overflow-hidden border border-slate-700 canvas-container" style="width: 512px; height: 512px;">
+                <!-- 1. 底图层 -->
+                <canvas id="baseCanvas" width="512" height="512" class="absolute top-0 left-0"></canvas>
+                <!-- 2. 仿真去噪层 (用于动画演示) -->
+                <canvas id="simulationCanvas" width="512" height="512" class="absolute top-0 left-0 pointer-events-none opacity-0 transition-opacity duration-500"></canvas>
+                <!-- 3. 结果层 (API返回后显示) -->
+                <canvas id="resultCanvas" width="512" height="512" class="absolute top-0 left-0 opacity-0 transition-opacity duration-1000"></canvas>
+                <!-- 4. 蒙版交互层 (最顶层，处理鼠标事件) -->
+                <canvas id="maskCanvas" width="512" height="512" class="absolute top-0 left-0 cursor-crosshair opacity-70"></canvas>
+                
+                <!-- 空状态提示 -->
+                <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none bg-slate-900/80 backdrop-blur-sm z-50">
+                    <i class="fas fa-image text-5xl mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">请先上传一张图片</p>
+                </div>
+
+                <!-- 加载/处理状态遮罩 -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex-col items-center justify-center">
+                    <div class="cyber-loader mb-4"></div>
+                    <h2 class="text-xl font-bold text-white mb-1" id="loadingText">正在初始化...</h2>
+                    <p class="text-sm text-blue-300" id="loadingSubText">连接云端计算集群</p>
+                </div>
+
+                <!-- CORS 错误提示弹窗 -->
+                <div id="corsHelpModal" class="absolute inset-0 bg-slate-900/95 z-[70] hidden flex-col items-center justify-center p-8 text-center">
+                    <div class="bg-red-500/10 border border-red-500/50 rounded-xl p-6 max-w-lg">
+                        <div class="text-red-500 text-4xl mb-3"><i class="fas fa-shield-alt"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-2">浏览器安全策略拦截了请求</h3>
+                        <p class="text-sm text-slate-300 mb-4 text-left">
+                            阿里云 API 不允许网页直接调用 (CORS 限制)。要在本地演示，您需要使用<b>开发者模式</b>启动浏览器。
+                        </p>
+                        <div class="mb-2 text-xs text-slate-400 text-left font-bold">Edge 浏览器运行命令 (Win+R):</div>
+                        <div class="bg-slate-800 p-3 rounded-lg text-left text-xs font-mono text-green-400 mb-4 overflow-x-auto whitespace-nowrap select-all">
+                            "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --disable-web-security --user-data-dir="C:/EdgeDev"
+                        </div>
+                        <div class="flex gap-3 justify-center">
+                            <button onclick="document.getElementById('corsHelpModal').classList.add('hidden')" class="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600">我知道了</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 状态信息条 -->
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur border border-slate-700 px-6 py-2 rounded-full text-sm flex items-center gap-3 shadow-lg">
+                <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="statusText">等待操作...</span>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- API Key 设置模态框 -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 transform transition-all scale-100">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-key text-yellow-500"></i> API 配置
+            </h2>
+            <p class="text-slate-400 text-sm mb-4">
+                本应用需调用阿里云 DashScope API。请填入您的 Key。<br>
+                <span class="text-xs text-slate-500">* Key 仅保存在本地浏览器缓存中，不会上传到我们的服务器。</span>
+            </p>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-2">API 区域 (Region)</label>
+                <select id="apiRegionSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="bj">中国 - 北京 (dashscope.aliyuncs.com)</option>
+                    <option value="sg">国际 - 新加坡 (dashscope-intl.aliyuncs.com)</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-2">DashScope API Key</label>
+                <input type="password" id="apiKeyInput" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="sk-...">
+            </div>
+            
+            <div class="flex justify-end gap-3">
+                <button onclick="toggleSettings()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">取消</button>
+                <button onclick="saveSettings()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">保存</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ================= 全局变量 =================
+    const canvasSize = 512;
+    const baseCanvas = document.getElementById('baseCanvas');
+    const maskCanvas = document.getElementById('maskCanvas');
+    const simulationCanvas = document.getElementById('simulationCanvas');
+    const resultCanvas = document.getElementById('resultCanvas');
+    
+    const ctxBase = baseCanvas.getContext('2d');
+    const ctxMask = maskCanvas.getContext('2d');
+    const ctxSim = simulationCanvas.getContext('2d');
+    const ctxResult = resultCanvas.getContext('2d');
+
+    let isDrawing = false;
+    let currentTool = 'brush'; // brush or eraser
+    let brushSize = 20;
+    let hasImage = false;
+    let isGenerating = false;
+    
+    // === 生产环境 API Key 处理 ===
+    // 1. 默认留空，防止 Key 泄漏
+    // 2. 优先读取 window._env_.API_KEY (如果部署环境有注入)
+    // 3. 再次读取 localStorage
+    const INJECTED_KEY = window._env_ && window._env_.API_KEY ? window._env_.API_KEY : '';
+    const DEFAULT_API_KEY = INJECTED_KEY || ''; 
+
+    let apiKey = localStorage.getItem('aliyun_api_key') || DEFAULT_API_KEY;
+    let apiRegion = localStorage.getItem('aliyun_api_region') || 'bj';
+
+    // ================= 初始化 =================
+    function init() {
+        // 如果没有 Key，弹出设置框
+        if(!apiKey) toggleSettings();
+        
+        // 绑定笔刷大小滑块
+        const range = document.getElementById('brushSize');
+        range.addEventListener('input', (e) => {
+            brushSize = parseInt(e.target.value);
+            document.getElementById('brushSizeVal').innerText = brushSize + 'px';
+        });
+
+        maskCanvas.addEventListener('mousedown', startDraw);
+        maskCanvas.addEventListener('mousemove', draw);
+        maskCanvas.addEventListener('mouseup', stopDraw);
+        maskCanvas.addEventListener('mouseleave', stopDraw);
+
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+    }
+
+    // ================= 图像处理逻辑 =================
+    function handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                // 居中缩放绘制
+                ctxBase.clearRect(0, 0, canvasSize, canvasSize);
+                
+                // contain 模式
+                const scale = Math.min(canvasSize / img.width, canvasSize / img.height);
+                const x = (canvasSize - img.width * scale) / 2;
+                const y = (canvasSize - img.height * scale) / 2;
+                
+                ctxBase.drawImage(img, x, y, img.width * scale, img.height * scale);
+                
+                // 重置其他层
+                clearMask();
+                ctxSim.clearRect(0, 0, canvasSize, canvasSize);
+                ctxResult.clearRect(0, 0, canvasSize, canvasSize);
+                resultCanvas.style.opacity = '0';
+                
+                hasImage = true;
+                document.getElementById('emptyState').classList.add('hidden');
+                updateStatus('图片已就绪，请涂抹需要修改的区域', 'green');
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(file);
+    }
+
+    // ================= 绘图逻辑 (Mask) =================
+    function startDraw(e) {
+        if (!hasImage || isGenerating) return;
+        isDrawing = true;
+        draw(e);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+
+        const rect = maskCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (canvasSize / rect.width);
+        const y = (e.clientY - rect.top) * (canvasSize / rect.height);
+
+        ctxMask.lineWidth = brushSize;
+        ctxMask.lineCap = 'round';
+        ctxMask.lineJoin = 'round';
+
+        if (currentTool === 'brush') {
+            ctxMask.globalCompositeOperation = 'source-over';
+            ctxMask.strokeStyle = 'rgba(255, 0, 0, 0.6)'; // 半透明红色
+        } else {
+            ctxMask.globalCompositeOperation = 'destination-out';
+            ctxMask.strokeStyle = 'rgba(0,0,0,1)';
+        }
+
+        ctxMask.lineTo(x, y);
+        ctxMask.stroke();
+        ctxMask.beginPath();
+        ctxMask.moveTo(x, y);
+    }
+
+    function stopDraw() {
+        isDrawing = false;
+        ctxMask.beginPath();
+    }
+
+    function setTool(tool) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tool === 'brush' ? 'btnBrush' : 'btnEraser').classList.add('active');
+    }
+
+    function clearMask() {
+        ctxMask.clearRect(0, 0, canvasSize, canvasSize);
+    }
+
+    // ================= 核心流程：生成与仿真 =================
+    async function startGeneration() {
+        if (!hasImage) return alert('请先上传图片');
+        const prompt = document.getElementById('promptInput').value.trim();
+        if (!prompt) return alert('请输入提示词');
+        
+        // 检查 Key
+        if (!apiKey) return toggleSettings();
+
+        const maskData = ctxMask.getImageData(0, 0, canvasSize, canvasSize);
+        const hasMaskPixel = maskData.data.some((val, index) => index % 4 === 3 && val > 0);
+        if (!hasMaskPixel) return alert('请先用画笔涂抹需要修改的区域');
+
+        isGenerating = true;
+        document.getElementById('generateBtn').disabled = true;
+        
+        // 1. 准备 UI
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const loadingSubText = document.getElementById('loadingSubText');
+        
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.classList.add('flex');
+        
+        try {
+            // 2. 准备发送给 AI 的图片
+            const inputCanvas = document.createElement('canvas');
+            inputCanvas.width = canvasSize;
+            inputCanvas.height = canvasSize;
+            const ctxInput = inputCanvas.getContext('2d');
+            
+            // 绘制底图
+            ctxInput.drawImage(baseCanvas, 0, 0);
+            
+            // 绘制涂抹层
+            const tempMaskCanvas = document.createElement('canvas');
+            tempMaskCanvas.width = canvasSize;
+            tempMaskCanvas.height = canvasSize;
+            const tCtx = tempMaskCanvas.getContext('2d');
+            tCtx.drawImage(maskCanvas, 0, 0);
+            const mData = tCtx.getImageData(0, 0, canvasSize, canvasSize);
+            for(let i=0; i<mData.data.length; i+=4) {
+                if(mData.data[i+3] > 50) { 
+                    mData.data[i] = 255;   
+                    mData.data[i+1] = 0;   
+                    mData.data[i+2] = 0;   
+                    mData.data[i+3] = 255; 
+                }
+            }
+            tCtx.putImageData(mData, 0, 0);
+            ctxInput.drawImage(tempMaskCanvas, 0, 0);
+
+            const base64Image = inputCanvas.toDataURL('image/png'); 
+
+            // 3. 启动“仿真去噪动画”
+            maskCanvas.style.opacity = '0'; 
+            simulationCanvas.style.opacity = '1';
+            
+            let animationFrameId;
+            let progress = 0;
+            const animateDiffusion = () => {
+                if(progress > 100) progress = 100;
+                
+                const imgData = ctxSim.createImageData(canvasSize, canvasSize);
+                const buffer = new Uint32Array(imgData.data.buffer);
+                
+                for(let i=0; i<buffer.length; i++) {
+                    const alpha = mData.data[i*4+3]; 
+                    if(alpha > 50) {
+                        const noiseAmount = Math.max(0, 1 - progress/80); 
+                        const r = Math.random() * 255 * noiseAmount;
+                        const g = Math.random() * 255 * noiseAmount;
+                        const b = Math.random() * 255 * noiseAmount;
+                        
+                        imgData.data[i*4] = r + (progress * 2); 
+                        imgData.data[i*4+1] = g + (progress * 2);
+                        imgData.data[i*4+2] = b + (progress * 2);
+                        imgData.data[i*4+3] = 255;
+                    } else {
+                        imgData.data[i*4+3] = 0; 
+                    }
+                }
+                ctxSim.putImageData(imgData, 0, 0);
+                
+                loadingText.innerText = `AI 正在构思... ${Math.floor(progress)}%`;
+                loadingSubText.innerText = progress < 50 ? "正向扩散：添加噪声" : "反向去噪：重构图像";
+                
+                if(isGenerating) {
+                    progress += 0.5; 
+                    animationFrameId = requestAnimationFrame(animateDiffusion);
+                }
+            };
+            animateDiffusion();
+
+            // 4. 调用阿里云 API (纯直连模式)
+            updateStatus('正在连接阿里云 Qwen Max Cluster...', 'blue');
+            
+            const augmentedPrompt = `将图中红色涂抹的区域替换为：${prompt}。保持图像其他部分不变，融合自然。`;
+
+            // 直连地址，不经过代理
+            const baseUrl = apiRegion === 'sg' 
+                ? 'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
+                : 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+            
+            const cleanApiKey = apiKey.replace(/[^\x00-\x7F]/g, "").trim();
+
+            const response = await fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${cleanApiKey}`,
+                    'Content-Type': 'application/json'
+                    // 'X-DashScope-WorkSpace': 'modal' <-- 已删除此头，修复 403 错误
+                },
+                body: JSON.stringify({
+                    "model": "qwen-image-edit-plus",
+                    "input": {
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    { "image": base64Image }, 
+                                    { "text": augmentedPrompt }
+                                ]
+                            }
+                        ]
+                    },
+                    "parameters": {
+                        "n": 1,
+                        "watermark": false
+                    }
+                })
+            });
+
+            const data = await response.json();
+            
+            isGenerating = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            if (response.status !== 200) {
+                console.error(data);
+                if (data.code === 'InvalidApiKey') {
+                    throw new Error("API Key 无效，请检查区域设置。");
+                }
+                // 如果出现 CORS 错误，会被下面的 catch 捕获
+                throw new Error(data.message || 'API 请求失败');
+            }
+
+            // 5. 显示结果
+            const resultUrl = data.output.choices[0].message.content[0].image;
+            
+            loadingText.innerText = "渲染完成！";
+            loadingSubText.innerText = "下载结果中...";
+            
+            const resultImg = new Image();
+            resultImg.crossOrigin = "Anonymous"; 
+            resultImg.onload = function() {
+                ctxResult.drawImage(resultImg, 0, 0, canvasSize, canvasSize);
+                
+                simulationCanvas.style.opacity = '0';
+                resultCanvas.style.opacity = '1';
+                
+                loadingOverlay.classList.add('hidden');
+                document.getElementById('generateBtn').disabled = false;
+                updateStatus('生成完毕！', 'green');
+                maskCanvas.style.opacity = '0';
+            };
+            resultImg.src = resultUrl;
+
+        } catch (error) {
+            isGenerating = false;
+            loadingOverlay.classList.add('hidden');
+            document.getElementById('generateBtn').disabled = false;
+            maskCanvas.style.opacity = '0.7'; 
+            
+            let msg = error.message;
+            // 智能识别 CORS 错误并弹出教程
+            if (msg.includes('Failed to fetch')) {
+                document.getElementById('corsHelpModal').classList.remove('hidden');
+                msg = "网络请求被拦截 (CORS)";
+            }
+            
+            updateStatus('生成失败: ' + msg, 'red');
+            console.error(error);
+        }
+    }
+
+    // ================= 辅助功能 =================
+    function toggleSettings() {
+        const modal = document.getElementById('settingsModal');
+        const input = document.getElementById('apiKeyInput');
+        const regionSelect = document.getElementById('apiRegionSelect');
+        
+        if (modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            input.value = apiKey;
+            regionSelect.value = apiRegion;
+        } else {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+
+    function saveSettings() {
+        const input = document.getElementById('apiKeyInput');
+        const regionSelect = document.getElementById('apiRegionSelect');
+        
+        apiKey = input.value.replace(/[^\x00-\x7F]/g, "").trim();
+        apiRegion = regionSelect.value;
+        
+        if (apiKey) {
+            input.value = apiKey; 
+            localStorage.setItem('aliyun_api_key', apiKey);
+            localStorage.setItem('aliyun_api_region', apiRegion);
+            toggleSettings();
+            updateStatus('API 配置已保存', 'green');
+        } else {
+            alert('请输入有效的 Key');
+        }
+    }
+
+    function updateStatus(text, color = 'gray') {
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        
+        const colors = {
+            'gray': 'bg-slate-500',
+            'green': 'bg-green-500',
+            'blue': 'bg-blue-500',
+            'red': 'bg-red-500'
+        };
+
+        dot.className = `w-2 h-2 rounded-full ${colors[color]}`;
+        txt.innerText = text;
+        
+        txt.classList.add('text-white');
+        setTimeout(() => txt.classList.remove('text-white'), 500);
+    }
+
+    init();
+</script>
+</body>
+</html>
