@@ -72,16 +72,6 @@
             background: #475569;
             border-radius: 2px;
         }
-        
-        /* 帮助弹窗样式 */
-        .help-tip {
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -94,11 +84,7 @@
             </div>
             <h1 class="text-xl font-bold tracking-wide">AI 创意绘图实验室</h1>
         </div>
-        <div class="flex items-center gap-4">
-            <button onclick="toggleSettings()" class="text-slate-400 hover:text-white transition-colors">
-                <i class="fas fa-cog text-lg"></i> 设置 API Key
-            </button>
-        </div>
+        <!-- 删除了设置按钮，因为不需要前端填 Key 了 -->
     </header>
 
     <!-- 主工作区 -->
@@ -180,22 +166,6 @@
                     <h2 class="text-xl font-bold text-white mb-1" id="loadingText">正在初始化...</h2>
                     <p class="text-sm text-blue-300" id="loadingSubText">连接云端计算集群</p>
                 </div>
-
-                <!-- CORS 错误提示弹窗 -->
-                <div id="corsHelpModal" class="absolute inset-0 bg-slate-900/95 z-[70] hidden flex-col items-center justify-center p-8 text-center">
-                    <div class="bg-red-500/10 border border-red-500/50 rounded-xl p-6 max-w-lg">
-                        <div class="text-red-500 text-4xl mb-3"><i class="fas fa-shield-alt"></i></div>
-                        <h3 class="text-xl font-bold text-white mb-2">生成失败 (CORS)</h3>
-                        <p class="text-sm text-slate-300 mb-4 text-left">
-                            如果是部署在 Zeabur，请确保访问的是分配的 .zeabur.app 域名，而不是本地预览。
-                            <br><br>
-                            如果是本地开发，请使用开发者模式启动浏览器。
-                        </p>
-                        <div class="flex gap-3 justify-center">
-                            <button onclick="document.getElementById('corsHelpModal').classList.add('hidden')" class="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600">关闭</button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- 状态信息条 -->
@@ -206,36 +176,6 @@
 
         </section>
     </main>
-
-    <!-- API Key 设置模态框 -->
-    <div id="settingsModal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 transform transition-all scale-100">
-            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <i class="fas fa-key text-yellow-500"></i> API 配置
-            </h2>
-            <p class="text-slate-400 text-sm mb-4">
-                系统未检测到内置 API Key，请手动输入。<br>
-            </p>
-            
-            <div class="mb-4">
-                <label class="block text-xs font-bold text-slate-300 uppercase mb-2">API 区域 (Region)</label>
-                <select id="apiRegionSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="bj">中国 - 北京 (dashscope.aliyuncs.com)</option>
-                    <option value="sg">国际 - 新加坡 (dashscope-intl.aliyuncs.com)</option>
-                </select>
-            </div>
-
-            <div class="mb-6">
-                <label class="block text-xs font-bold text-slate-300 uppercase mb-2">DashScope API Key</label>
-                <input type="password" id="apiKeyInput" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="sk-...">
-            </div>
-            
-            <div class="flex justify-end gap-3">
-                <button onclick="toggleSettings()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">取消</button>
-                <button onclick="saveSettings()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">保存</button>
-            </div>
-        </div>
-    </div>
 
 <script>
     // ================= 全局变量 =================
@@ -255,20 +195,9 @@
     let brushSize = 20;
     let hasImage = false;
     let isGenerating = false;
-    
-    // === 关键逻辑：获取注入的环境变量 ===
-    // 这里的 window._env_ 是由 server.js 在页面加载时动态插入的
-    const INJECTED_KEY = window._env_ && window._env_.API_KEY ? window._env_.API_KEY : '';
-    const INJECTED_REGION = window._env_ && window._env_.API_REGION ? window._env_.API_REGION : 'bj';
-
-    let apiKey = localStorage.getItem('aliyun_api_key') || INJECTED_KEY;
-    let apiRegion = localStorage.getItem('aliyun_api_region') || INJECTED_REGION;
 
     // ================= 初始化 =================
     function init() {
-        // 如果环境变量没注入，且本地没缓存，才弹窗
-        if(!apiKey) toggleSettings();
-        
         // 绑定笔刷大小滑块
         const range = document.getElementById('brushSize');
         range.addEventListener('input', (e) => {
@@ -370,9 +299,6 @@
         if (!hasImage) return alert('请先上传图片');
         const prompt = document.getElementById('promptInput').value.trim();
         if (!prompt) return alert('请输入提示词');
-        
-        // 检查 Key
-        if (!apiKey) return toggleSettings();
 
         const maskData = ctxMask.getImageData(0, 0, canvasSize, canvasSize);
         const hasMaskPixel = maskData.data.some((val, index) => index % 4 === 3 && val > 0);
@@ -459,24 +385,16 @@
             };
             animateDiffusion();
 
-            // 4. 调用阿里云 API (纯直连模式)
-            updateStatus('正在连接阿里云 Qwen Max Cluster...', 'blue');
+            // 4. 调用后端代理 (完美解决 CORS)
+            updateStatus('正在连接服务器...', 'blue');
             
             const augmentedPrompt = `将图中红色涂抹的区域替换为：${prompt}。保持图像其他部分不变，融合自然。`;
 
-            // 直连地址
-            const baseUrl = apiRegion === 'sg' 
-                ? 'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
-                : 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
-            
-            const cleanApiKey = apiKey.replace(/[^\x00-\x7F]/g, "").trim();
-
-            const response = await fetch(baseUrl, {
+            // 请求自己的后端接口
+            const response = await fetch('/api/generate', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${cleanApiKey}`,
                     'Content-Type': 'application/json'
-                    // 'X-DashScope-WorkSpace': 'modal' <-- 已移除
                 },
                 body: JSON.stringify({
                     "model": "qwen-image-edit-plus",
@@ -504,11 +422,7 @@
             cancelAnimationFrame(animationFrameId);
             
             if (response.status !== 200) {
-                console.error(data);
-                if (data.code === 'InvalidApiKey') {
-                    throw new Error("API Key 无效，请检查区域设置。");
-                }
-                throw new Error(data.message || 'API 请求失败');
+                throw new Error(data.message || data.error || 'API 请求失败');
             }
 
             // 5. 显示结果
@@ -538,49 +452,9 @@
             document.getElementById('generateBtn').disabled = false;
             maskCanvas.style.opacity = '0.7'; 
             
-            let msg = error.message;
-            if (msg.includes('Failed to fetch')) {
-                document.getElementById('corsHelpModal').classList.remove('hidden');
-                msg = "网络请求被拦截 (CORS)";
-            }
-            
-            updateStatus('生成失败: ' + msg, 'red');
+            alert(`生成失败: ${error.message}`);
+            updateStatus('生成失败', 'red');
             console.error(error);
-        }
-    }
-
-    // ================= 辅助功能 =================
-    function toggleSettings() {
-        const modal = document.getElementById('settingsModal');
-        const input = document.getElementById('apiKeyInput');
-        const regionSelect = document.getElementById('apiRegionSelect');
-        
-        if (modal.classList.contains('hidden')) {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            input.value = apiKey;
-            regionSelect.value = apiRegion;
-        } else {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-    }
-
-    function saveSettings() {
-        const input = document.getElementById('apiKeyInput');
-        const regionSelect = document.getElementById('apiRegionSelect');
-        
-        apiKey = input.value.replace(/[^\x00-\x7F]/g, "").trim();
-        apiRegion = regionSelect.value;
-        
-        if (apiKey) {
-            input.value = apiKey; 
-            localStorage.setItem('aliyun_api_key', apiKey);
-            localStorage.setItem('aliyun_api_region', apiRegion);
-            toggleSettings();
-            updateStatus('API 配置已保存', 'green');
-        } else {
-            alert('请输入有效的 Key');
         }
     }
 
