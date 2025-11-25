@@ -185,16 +185,14 @@
                 <div id="corsHelpModal" class="absolute inset-0 bg-slate-900/95 z-[70] hidden flex-col items-center justify-center p-8 text-center">
                     <div class="bg-red-500/10 border border-red-500/50 rounded-xl p-6 max-w-lg">
                         <div class="text-red-500 text-4xl mb-3"><i class="fas fa-shield-alt"></i></div>
-                        <h3 class="text-xl font-bold text-white mb-2">浏览器安全策略拦截了请求</h3>
+                        <h3 class="text-xl font-bold text-white mb-2">生成失败 (CORS)</h3>
                         <p class="text-sm text-slate-300 mb-4 text-left">
-                            阿里云 API 不允许网页直接调用 (CORS 限制)。要在本地演示，您需要使用<b>开发者模式</b>启动浏览器。
+                            如果是部署在 Zeabur，请确保访问的是分配的 .zeabur.app 域名，而不是本地预览。
+                            <br><br>
+                            如果是本地开发，请使用开发者模式启动浏览器。
                         </p>
-                        <div class="mb-2 text-xs text-slate-400 text-left font-bold">Edge 浏览器运行命令 (Win+R):</div>
-                        <div class="bg-slate-800 p-3 rounded-lg text-left text-xs font-mono text-green-400 mb-4 overflow-x-auto whitespace-nowrap select-all">
-                            "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --disable-web-security --user-data-dir="C:/EdgeDev"
-                        </div>
                         <div class="flex gap-3 justify-center">
-                            <button onclick="document.getElementById('corsHelpModal').classList.add('hidden')" class="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600">我知道了</button>
+                            <button onclick="document.getElementById('corsHelpModal').classList.add('hidden')" class="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600">关闭</button>
                         </div>
                     </div>
                 </div>
@@ -216,8 +214,7 @@
                 <i class="fas fa-key text-yellow-500"></i> API 配置
             </h2>
             <p class="text-slate-400 text-sm mb-4">
-                本应用需调用阿里云 DashScope API。请填入您的 Key。<br>
-                <span class="text-xs text-slate-500">* Key 仅保存在本地浏览器缓存中，不会上传到我们的服务器。</span>
+                系统未检测到内置 API Key，请手动输入。<br>
             </p>
             
             <div class="mb-4">
@@ -259,19 +256,17 @@
     let hasImage = false;
     let isGenerating = false;
     
-    // === 生产环境 API Key 处理 ===
-    // 1. 默认留空，防止 Key 泄漏
-    // 2. 优先读取 window._env_.API_KEY (如果部署环境有注入)
-    // 3. 再次读取 localStorage
+    // === 关键逻辑：获取注入的环境变量 ===
+    // 这里的 window._env_ 是由 server.js 在页面加载时动态插入的
     const INJECTED_KEY = window._env_ && window._env_.API_KEY ? window._env_.API_KEY : '';
-    const DEFAULT_API_KEY = INJECTED_KEY || ''; 
+    const INJECTED_REGION = window._env_ && window._env_.API_REGION ? window._env_.API_REGION : 'bj';
 
-    let apiKey = localStorage.getItem('aliyun_api_key') || DEFAULT_API_KEY;
-    let apiRegion = localStorage.getItem('aliyun_api_region') || 'bj';
+    let apiKey = localStorage.getItem('aliyun_api_key') || INJECTED_KEY;
+    let apiRegion = localStorage.getItem('aliyun_api_region') || INJECTED_REGION;
 
     // ================= 初始化 =================
     function init() {
-        // 如果没有 Key，弹出设置框
+        // 如果环境变量没注入，且本地没缓存，才弹窗
         if(!apiKey) toggleSettings();
         
         // 绑定笔刷大小滑块
@@ -469,7 +464,7 @@
             
             const augmentedPrompt = `将图中红色涂抹的区域替换为：${prompt}。保持图像其他部分不变，融合自然。`;
 
-            // 直连地址，不经过代理
+            // 直连地址
             const baseUrl = apiRegion === 'sg' 
                 ? 'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
                 : 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
@@ -481,7 +476,7 @@
                 headers: {
                     'Authorization': `Bearer ${cleanApiKey}`,
                     'Content-Type': 'application/json'
-                    // 'X-DashScope-WorkSpace': 'modal' <-- 已删除此头，修复 403 错误
+                    // 'X-DashScope-WorkSpace': 'modal' <-- 已移除
                 },
                 body: JSON.stringify({
                     "model": "qwen-image-edit-plus",
@@ -513,7 +508,6 @@
                 if (data.code === 'InvalidApiKey') {
                     throw new Error("API Key 无效，请检查区域设置。");
                 }
-                // 如果出现 CORS 错误，会被下面的 catch 捕获
                 throw new Error(data.message || 'API 请求失败');
             }
 
@@ -545,7 +539,6 @@
             maskCanvas.style.opacity = '0.7'; 
             
             let msg = error.message;
-            // 智能识别 CORS 错误并弹出教程
             if (msg.includes('Failed to fetch')) {
                 document.getElementById('corsHelpModal').classList.remove('hidden');
                 msg = "网络请求被拦截 (CORS)";
