@@ -28,8 +28,8 @@ app.post('/api/generate', async (req, res) => {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                'X-DashScope-WorkSpace': 'modal'
+                'Content-Type': 'application/json'
+                // 'X-DashScope-WorkSpace': 'modal' <-- 已删除此行，修复 Workspace access denied 错误
             },
             body: JSON.stringify(req.body) // 直接透传前端的数据
         });
